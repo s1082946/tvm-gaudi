@@ -444,6 +444,9 @@ TVM_REGISTER_TARGET_KIND("composite", kDLCPU)  // line break
 TVM_REGISTER_TARGET_KIND("test", kDLCPU)  // line break
     .set_target_parser(TestTargetParser);
 
+TVM_REGISTER_TARGET_KIND("gaudi", kDLCPU)
+    .set_default_keys({"gaudi"});
+
 /**********  Registry  **********/
 
 TVM_FFI_STATIC_INIT_BLOCK() {

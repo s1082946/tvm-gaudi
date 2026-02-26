@@ -36,7 +36,6 @@
 #include "../../runtime/cuda/cuda_module.h"
 #include "../build_common.h"
 #include "../source/codegen_cuda.h"
-
 namespace tvm {
 namespace codegen {
 
@@ -173,9 +172,23 @@ ffi::Module BuildCUDA(IRModule mod, Target target) {
   return CUDAModuleCreate(ptx, fmt, ExtractFuncInfo(mod), code);
 }
 
+
+ffi::Module BuildGaudi(IRModule mod, Target target) {
+  // Phase A 先不理 IRModule / Target，硬塞一段 TPC-C 當測試用 code
+  std::string src = R"(
+void main(tensor A, tensor B, tensor C) {
+    // TODO: real TPC kernel later
+}
+)";
+
+  // 這個 helper 會產生一個「裝原始碼字串」的 Module
+  // return 型別是 runtime::Module，但可以自動轉成 ffi::Module
+  return tvm::codegen::CSourceModuleCreate(src, "tpc-c");
+}
 TVM_FFI_STATIC_INIT_BLOCK() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("target.build.cuda", BuildCUDA);
+  refl::GlobalDef().def("target.build.gaudi", BuildGaudi);
 }
 TVM_REGISTER_PASS_CONFIG_OPTION("cuda.kernels_output_dir", ffi::String);
 }  // namespace codegen
