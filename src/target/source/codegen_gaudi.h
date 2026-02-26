@@ -21,7 +21,7 @@ namespace codegen {
 class CodeGenGaudi : public CodeGenC {
  public:
   CodeGenGaudi();
-
+  
   void PrintFuncPrefix(std::ostream& os) override;
   void PrintType(DataType t, std::ostream& os) override;
 
@@ -49,6 +49,10 @@ class CodeGenGaudi : public CodeGenC {
                  const std::vector<tvm::tir::Buffer>& arg_buffers,
                  const tvm::tir::Stmt& body);
   void EnableKernelDebug(bool v) { kernel_debug_ = v; }
+  // Current tile loop iv name, empty if not in tile loop.
+std::string tile0_var_;
+// Optional: debug print
+bool emit_index_space_ = true;
 private:
   bool gaudi_intrin_emitted_{false};
   void EmitGaudiIntrinsicsOnce();

@@ -205,10 +205,14 @@ def build(
     if target is not None:
         if target.host is not None:
             target_host = target.host
-        elif (
-            tvm.device(target.kind.name, 0).dlpack_device_type() == tvm.cpu(0).dlpack_device_type()
-        ):
-            target_host = target
+        else:
+            # 把 gaudi 視為一種 CPU device，避免 tvm.device("gaudi", 0) 報 Unknown device
+            dev_name = target.kind.name
+            if dev_name == "gaudi":
+                dev_name = "cpu"
+
+            if tvm.device(dev_name, 0).dlpack_device_type() == tvm.cpu(0).dlpack_device_type():
+                target_host = target
     target_host = Target.canon_target(target_host)
     target_to_bind = target_to_bind.with_host(target_host)
 
