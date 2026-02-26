@@ -327,6 +327,7 @@ list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})
 tvm_file_glob(GLOB DATATYPE_SRCS src/target/datatype/*.cc)
 list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
 list(APPEND COMPILER_SRCS "src/target/datatype/myfloat/myfloat.cc")
+list(APPEND COMPILER_SRCS "src/target/opt/build_gaudi.cc")
 
 tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
