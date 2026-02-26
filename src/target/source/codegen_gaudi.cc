@@ -1,11 +1,30 @@
 #include "codegen_gaudi.h"
 
 #include <sstream>
+#include <vector>
+
+#include <tvm/tir/function.h>
 
 namespace tvm {
 namespace codegen {
 
 CodeGenGaudi::CodeGenGaudi() { restrict_keyword_ = "restrict"; }
+
+// ---------------------------------------------------------------------------
+// AddFunction: entry point called by BuildGaudi for each PrimFunc.
+// Extracts buffer arguments in declaration order, then delegates to AddKernel
+// which produces the TPC-C kernel body (with or without index-space loop).
+// ---------------------------------------------------------------------------
+void CodeGenGaudi::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
+  std::vector<tvm::tir::Buffer> arg_buffers;
+  for (const auto& param : f->params) {
+    auto it = f->buffer_map.find(param);
+    if (it != f->buffer_map.end()) {
+      arg_buffers.push_back((*it).second);
+    }
+  }
+  AddKernel(gvar->name_hint, arg_buffers, f->body);
+}
 
 void CodeGenGaudi::PrintFuncPrefix(std::ostream& os) { (void)os; }
 

@@ -21,6 +21,12 @@
  *  Optional module when build cuda is switched to off
  */
 #include "../../runtime/cuda/cuda_module.h"
+#include "../source/codegen_gaudi.h"
+#include "../source/codegen_source_base.h"
+
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/tir/function.h>
+
 namespace tvm {
 namespace runtime {
 
@@ -31,4 +37,29 @@ ffi::Module CUDAModuleCreate(std::string data, std::string fmt,
   TVM_FFI_UNREACHABLE();
 }
 }  // namespace runtime
+
+namespace codegen {
+
+ffi::Module BuildGaudi(IRModule mod, Target target) {
+  (void)target;
+  CodeGenGaudi cg;
+  cg.Init(/*output_ssa=*/false);
+  for (auto kv : mod->functions) {
+    if (!kv.second->IsInstance<PrimFuncNode>()) continue;
+    cg.DeclareFunction(kv.first, Downcast<PrimFunc>(kv.second));
+  }
+  for (auto kv : mod->functions) {
+    if (!kv.second->IsInstance<PrimFuncNode>()) continue;
+    cg.AddFunction(kv.first, Downcast<PrimFunc>(kv.second));
+  }
+  std::string src = cg.Finish();
+  return CSourceModuleCreate(src, "tpc-c", {}, {});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("target.build.gaudi", BuildGaudi);
+}
+
+}  // namespace codegen
 }  // namespace tvm

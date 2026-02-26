@@ -45,16 +45,20 @@ class CodeGenGaudi : public CodeGenC {
 
 
   void PreFunctionBody(const PrimFunc& f) override;
+  // Override AddFunction to produce a clean TPC-C kernel (calls AddKernel internally).
+  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) override;
   void AddKernel(const std::string& kernel_name,
                  const std::vector<tvm::tir::Buffer>& arg_buffers,
                  const tvm::tir::Stmt& body);
   void EnableKernelDebug(bool v) { kernel_debug_ = v; }
-  // Current tile loop iv name, empty if not in tile loop.
-std::string tile0_var_;
-// Optional: debug print
-bool emit_index_space_ = true;
-private:
+
+ private:
   bool gaudi_intrin_emitted_{false};
+  // Current tile-loop induction variable name; empty when not inside a tile loop.
+  std::string tile0_var_;
+  // If true, AddKernel wraps the body in an index-space tile loop.
+  // Set to false when the TIR body already contains the tile (for) loop.
+  bool emit_index_space_{false};
   void EmitGaudiIntrinsicsOnce();
   static constexpr int kVecLanes = 64;
   bool MatchRampIndexF32x64(const PrimExpr& index, PrimExpr* out_base) const;
