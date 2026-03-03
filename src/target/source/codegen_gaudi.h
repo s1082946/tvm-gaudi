@@ -1,6 +1,10 @@
 /*!
  * \file codegen_gaudi.h
- * \brief CodeGenGaudi: TIR -> TPC-C like C code (stub version)
+ * \brief CodeGenGaudi: TIR -> TPC-C kernel code for Habana Gaudi.
+ *
+ * Produces real TPC-C code using native types (int5, float64) and
+ * tensor intrinsics (v_f32_ld_tnsr_b, v_f32_st_tnsr, v_f32_add_b, etc.).
+ * Targets tpc-clang for compilation on Gaudi2.
  */
 
 #ifndef TVM_TARGET_SOURCE_CODEGEN_GAUDI_H_
@@ -8,7 +12,7 @@
 
 #include <ostream>
 #include <string>
-#include <vector>
+#include <unordered_set>
 
 #include "codegen_c.h"
 
@@ -21,50 +25,55 @@ namespace codegen {
 class CodeGenGaudi : public CodeGenC {
  public:
   CodeGenGaudi();
-  
-  void PrintFuncPrefix(std::ostream& os) override;
+
+  // Emit "void main(tensor A, tensor B, ...)" — always "void main" for TPC-C
+  void PrintFunctionSignature(const ffi::String& function_name, const PrimFunc& func,
+                              std::ostream& os) override;
+
+  // Inject index space preamble + coords variable at function entry
+  void PreFunctionBody(const PrimFunc& f) override;
+
+  // TPC-C native types: float64 (float32x64), int5, etc.
   void PrintType(DataType t, std::ostream& os) override;
 
-  void VisitStmt_(const tir::ForNode* op) override;
+  // Thread extents → for loops over TPC index space dimensions
+  void VisitStmt_(const tir::AttrStmtNode* op) override;
+
+  // TPC tensor intrinsics: v_f32_ld_tnsr_b / v_f32_st_tnsr
+  void VisitExpr_(const tir::BufferLoadNode* op, std::ostream& os) override;
   void VisitStmt_(const tir::BufferStoreNode* op) override;
 
-  void VisitExpr_(const tir::BufferLoadNode* op, std::ostream& os) override;
+  // Vector ops → TPC intrinsics (v_f32_add_b, v_f32_max_b, v_f32_mov_b, ...)
   void VisitExpr_(const tir::BroadcastNode* op, std::ostream& os) override;
   void VisitExpr_(const tir::AddNode* op, std::ostream& os) override;
   void VisitExpr_(const tir::SubNode* op, std::ostream& os) override;
   void VisitExpr_(const tir::MulNode* op, std::ostream& os) override;
   void VisitExpr_(const tir::DivNode* op, std::ostream& os) override;
-  //void VisitExpr_(const tir::NegNode* op, std::ostream& os) override;
-
-  // 可選：周報更好看（Clamp/Relu 常用）
-  void VisitExpr_(const tir::MinNode* op, std::ostream& os) override;
   void VisitExpr_(const tir::MaxNode* op, std::ostream& os) override;
+  void VisitExpr_(const tir::MinNode* op, std::ostream& os) override;
 
-  void VisitExpr_(const tir::CastNode* op, std::ostream& os) override;
+  // Skip assert statements (not supported in TPC-C)
   void VisitStmt_(const tir::AssertStmtNode* op) override;
 
-
-  void PreFunctionBody(const PrimFunc& f) override;
-  // Override AddFunction to produce a clean TPC-C kernel (calls AddKernel internally).
-  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) override;
-  void AddKernel(const std::string& kernel_name,
-                 const std::vector<tvm::tir::Buffer>& arg_buffers,
-                 const tvm::tir::Stmt& body);
-  void EnableKernelDebug(bool v) { kernel_debug_ = v; }
-
  private:
-  bool gaudi_intrin_emitted_{false};
-  // Current tile-loop induction variable name; empty when not inside a tile loop.
-  std::string tile0_var_;
-  // If true, AddKernel wraps the body in an index-space tile loop.
-  // Set to false when the TIR body already contains the tile (for) loop.
-  bool emit_index_space_{false};
-  void EmitGaudiIntrinsicsOnce();
-  static constexpr int kVecLanes = 64;
-  bool MatchRampIndexF32x64(const PrimExpr& index, PrimExpr* out_base) const;
-  bool kernel_debug_{false};
-  bool in_kernel_emit_{false};
+  // Var nodes corresponding to TPC tensor parameters (handle type)
+  std::unordered_set<const tir::VarNode*> tensor_buffers_;
 
+  static constexpr int kVecLanes = 64;
+
+  // Maps a thread tag (e.g. "threadIdx.x") to a TPC dimension index (0-4).
+  // Returns -1 for unknown tags.
+  int TagToDim(const std::string& tag) const;
+
+  // Returns the loop stride for a dimension (64 for dim 0 / depth, 1 otherwise).
+  int DimStride(int dim) const;
+
+  // Returns a human-readable name for a dimension ("depth", "width", etc.).
+  std::string DimName(int dim) const;
+
+  // Emit a binary vector intrinsic: intrin(a, b)
+  void EmitBinaryVec(const std::string& intrin, const PrimExpr& a, const PrimExpr& b,
+                     std::ostream& os);
 };
 
 }  // namespace codegen
